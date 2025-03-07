@@ -8,6 +8,7 @@ import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.Manifest
+import android.bluetooth.BluetoothManager
 import android.widget.Button
 import android.widget.TextView
 import androidx.core.app.ActivityCompat
@@ -18,7 +19,10 @@ import java.util.UUID
 
 class MainActivity : AppCompatActivity() {
     private var textView: TextView? = null
-    private val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
+    private val bluetoothManager: BluetoothManager by lazy {
+        getSystemService(BluetoothManager::class.java)
+    }
+    private val bluetoothAdapter: BluetoothAdapter? by lazy {bluetoothManager.adapter}
     private var bluetoothSocket: BluetoothSocket? = null
     private var outputStream: OutputStream? = null
     private val HC05_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
@@ -34,6 +38,7 @@ class MainActivity : AppCompatActivity() {
         val button2: Button = findViewById(R.id.button2)
         val button3: Button = findViewById(R.id.button3)
         val button4: Button = findViewById(R.id.button4)
+        val reconnectButton: Button = findViewById(R.id.reconnectButton)
         textView = findViewById(R.id.textView)
 
         connectToHC05()
@@ -42,6 +47,13 @@ class MainActivity : AppCompatActivity() {
         button2.setOnClickListener{sendData("5")}
         button3.setOnClickListener{sendData("6")}
         button4.setOnClickListener{sendData("7")}
+
+        reconnectButton.setOnClickListener{
+            textView?.text = ""
+            textView?.append("Reconnection...")
+            Thread.sleep(100)
+            reconnectHC05()
+        }
     }
 
     private fun connectToHC05() {
@@ -56,7 +68,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         var attempt = 0
-        val maxAttempts = 50
+        val maxAttempts = 150
 
         while (attempt < maxAttempts) {
             try {
@@ -67,7 +79,7 @@ class MainActivity : AppCompatActivity() {
                 return
             } catch (e: IOException) {
                 textView?.text = ""
-                textView?.append("\nConnection attempt no: $attempt failed!\n")
+                textView?.append("\nConnection attempt no: $attempt failed!\n ${e.message}\n")
                 e.printStackTrace()
                 try {
                     Thread.sleep(100)
@@ -81,16 +93,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun sendData(data: String) {
         try {
-            if(bluetoothSocket == null || !bluetoothSocket!!.isConnected()){
-                connectToHC05()
-            }
             outputStream?.write(data.toByteArray())
             outputStream?.flush()
             textView?.text = ""
-            textView?.append(" Sended: $data")
+            textView?.append("Sended: $data")
             Thread.sleep(200)
         } catch ( e:IOException){
-            textView?.append("\nError!\n")
+            textView?.append("\nError! ${e.message}\n")
             e.printStackTrace()
         }
     }
@@ -111,5 +120,12 @@ class MainActivity : AppCompatActivity() {
                 ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.BLUETOOTH_CONNECT), 1)
             }
         }
+    }
+
+    private fun reconnectHC05 (){
+        sendData("-1")
+        bluetoothSocket?.close()
+        outputStream?.close()
+        connectToHC05()
     }
 }
